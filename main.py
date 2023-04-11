@@ -1,8 +1,9 @@
 import customtkinter
-from tkinter import * #pip install tkinter
+from tkinter import *
 import time
 import socket
 import threading
+from datetime import datetime
 
 class app(customtkinter.CTk):
     def __init__(self):
@@ -12,6 +13,7 @@ class app(customtkinter.CTk):
         self.resizable(height=False,width=False)
 
         #local Variable
+        self.__time = None
         self.__radioWiFiMode = IntVar(0)
         self.__networkState={
             0:"disabled",
@@ -22,8 +24,9 @@ class app(customtkinter.CTk):
         self.__homepage = customtkinter.CTkFrame(self,width=400, height=220)
         self.__uploadpage = customtkinter.CTkFrame(self,width=400, height=220)
         self.__networkpage = customtkinter.CTkFrame(self,width=400, height=220)
+        self.__timepage = customtkinter.CTkFrame(self,width=400, height=220)
 
-        for frame in (self.__homepage,self.__uploadpage,self.__networkpage):
+        for frame in (self.__homepage,self.__uploadpage,self.__networkpage, self.__timepage):
             frame.grid(row=0, column=0, sticky='nsew')
 
     def homepage(self):
@@ -32,7 +35,7 @@ class app(customtkinter.CTk):
         customtkinter.CTkButton(self.__homepage,text='upload',width=80, command=self.uploadPage).place(anchor=CENTER,relx=0.13,rely=0.72)
         customtkinter.CTkButton(self.__homepage,text='download',width=80).place(anchor=W,relx=0.28,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='update',width=80).place(anchor=W,relx=0.28,rely=0.72)
-        customtkinter.CTkButton(self.__homepage,text='time',width=80).place(anchor=W,relx=0.53,rely=0.5)
+        customtkinter.CTkButton(self.__homepage,text='time',width=80, command=self.timePage).place(anchor=W,relx=0.53,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='network',width=80, command=self.networkPage).place(anchor=W,relx=0.53,rely=0.72)
         customtkinter.CTkButton(self.__homepage,text='reboot',width=80).place(anchor=W,relx=0.78,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='reset',width=80).place(anchor=W,relx=0.78,rely=0.72)
@@ -72,8 +75,24 @@ class app(customtkinter.CTk):
 
     def radioEvent(self):
         self.WiFiMode = self.__radioWiFiMode.get()
-        self.STASSIDEntry.configure(state=self.__networkState.get(self.WiFiMode))
-        self.STAPSWEntry.configure(state=self.__networkState.get(self.WiFiMode))
+        self.STASSIDEntry.configure(state=self.__networkState.get(self.WiFiMode),placeholder_text="SSID")
+        self.STAPSWEntry.configure(state=self.__networkState.get(self.WiFiMode),placeholder_text="Password")
+
+    def timePage(self):
+        customtkinter.CTkLabel(self.__timepage,text="Current Time",font=('arial',16)).place(anchor=CENTER,relx=0.5,rely=0.115)
+        self.__timeLabel = customtkinter.CTkLabel(self.__timepage,text='',font=('arial',16))
+        self.__timeLabel.place(anchor=CENTER,relx=0.5,rely=0.22)
+        customtkinter.CTkButton(self.__timepage,text='Save',width=80).place(anchor=E,relx=0.49,rely=0.9)
+        customtkinter.CTkButton(self.__timepage,text='return',width=80, command=self.homepage).place(anchor=W,relx=0.51,rely=0.9)
+        self.getTime()
+        self.__timepage.tkraise()
+        self.update()
+
+    def getTime(self):
+        self.__now = datetime.now()
+        self.__time = self.__now.strftime("%m/%d/%Y, %H:%M:%S")
+        self.__timeLabel.configure(text=self.__time)
+        self.after(1000,self.getTime)
 
 if __name__ == "__main__":
     main = app()
