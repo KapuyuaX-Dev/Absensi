@@ -7,12 +7,58 @@ from datetime import datetime
 import os
 import json
 
+class socketCon():
+    def __init__(self, host, port,funcRecv):
+        self.__host = host
+        self.__port = port
+        self.__funcRecv = funcRecv
+        self.__s = socket.socket()
+        self.connected = False
+
+    def connect(self):
+        print('a')
+        self.__s.connect((self.__host,self.__port))
+        self.connected = True
+        threading.Thread(target=self.listenIncomingMessage).start()
+
+    def disconnect(self):
+        self.__s.close()
+        self.connected=False
+
+    def sendRequest(self,msg):
+        _msg = bytes(msg,'UTF-8')
+        self.__s.sendall(_msg)
+    
+    def download(self):
+        _msg = 'req:log'
+        self.sendRequest(_msg)
+
+    def sendNetwork(self,data):
+        _msg = f'setWifi:{data}'
+        self.sendRequest(_msg)
+
+    def sendTime(self,time):
+        _msg = f'setTime:{time}'
+        self.sendRequest(_msg)
+
+    def listenIncomingMessage(self):
+        while self.connected:
+            try:
+                self.__data = self.__s.recv(1080).decode('UTF-8')
+                self.__funcRecv(self.__data)
+
+            except:
+                pass
+
 class app(customtkinter.CTk):
     def __init__(self):
         super().__init__()
         self.title('Absensi')
         self.geometry('400x220')
         self.resizable(height=False,width=False)
+
+        #socket con
+        self.__coms = None
 
         #local Variable
         self.__time = None
@@ -33,11 +79,46 @@ class app(customtkinter.CTk):
         for frame in (self.__homepage,self.__uploadpage,self.__networkpage, self.__timepage,self.__updatepage):
             frame.grid(row=0, column=0, sticky='nsew')
 
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def on_closing(self):
+        if self.__coms.connected:
+            self.__coms.disconnect()
+        self.destroy()
+
+    def connectionRecv(self,_msg):
+        print(_msg)
+
+    def makeConnection(self):
+        if self.__coms:
+            if self.__coms.connected:
+                self.__coms.disconnect()
+                self.connectButton.configure(text='Connect')
+
+            else:
+                self.__coms = socketCon('192.168.4.1',80,self.connectionRecv)
+                self.__coms.connect()
+                self.connectButton.configure(text='Disconnect')
+        
+        else:
+            self.__coms = socketCon('192.168.4.1',80,self.connectionRecv)
+            self.__coms.connect()
+            self.connectButton.configure(text='Disconnect')
+
+    def handleDownload(self):
+        if self.__coms is not None:
+            self.__coms.download()
+
     def homepage(self):
         customtkinter.CTkLabel(self.__homepage,text="Absensi UKRO UNP",font=('arial',16)).place(anchor=CENTER,relx=0.5,rely=0.125)
-        customtkinter.CTkButton(self.__homepage,text='Connect',width=80).place(anchor=CENTER,relx=0.13,rely=0.5)
+        context = 'Connect'
+        if self.__coms is not None:
+            if self.__coms.connected:
+                context = 'Disconnect'
+        self.connectButton = customtkinter.CTkButton(self.__homepage,text=context ,width=80,command=self.makeConnection)
+        self.connectButton.place(anchor=CENTER,relx=0.13,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='upload',width=80, command=self.uploadPage).place(anchor=CENTER,relx=0.13,rely=0.72)
-        customtkinter.CTkButton(self.__homepage,text='download',width=80).place(anchor=W,relx=0.28,rely=0.5)
+        customtkinter.CTkButton(self.__homepage,text='download',width=80,command=self.handleDownload).place(anchor=W,relx=0.28,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='update',width=80,command=self.updatePage).place(anchor=W,relx=0.28,rely=0.72)
         customtkinter.CTkButton(self.__homepage,text='time',width=80, command=self.timePage).place(anchor=W,relx=0.53,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='network',width=80, command=self.networkPage).place(anchor=W,relx=0.53,rely=0.72)
@@ -90,9 +171,12 @@ class app(customtkinter.CTk):
             }
         }
         self.__jsonObject = json.dumps(self.__data)
-        with open('./data/network.txt','w') as f:
+        with open(f'{os.getcwd()}/Absensi/data/network.txt','w') as f:
             f.write(self.__jsonObject)
-            
+        if self.__coms is not None:
+            if self.__coms.connected:
+                self.__coms.sendNetwork(self.__jsonObject)
+
         self.homepage()
 
     def radioEvent(self):
@@ -104,11 +188,18 @@ class app(customtkinter.CTk):
         customtkinter.CTkLabel(self.__timepage,text="Current Time",font=('arial',16)).place(anchor=CENTER,relx=0.5,rely=0.115)
         self.__timeLabel = customtkinter.CTkLabel(self.__timepage,text='',font=('arial',16))
         self.__timeLabel.place(anchor=CENTER,relx=0.5,rely=0.22)
-        customtkinter.CTkButton(self.__timepage,text='Save',width=80).place(anchor=E,relx=0.49,rely=0.9)
+        customtkinter.CTkButton(self.__timepage,text='Save',width=80,command=self.setTime).place(anchor=E,relx=0.49,rely=0.9)
         customtkinter.CTkButton(self.__timepage,text='return',width=80, command=self.homepage).place(anchor=W,relx=0.51,rely=0.9)
         self.getTime()
         self.__timepage.tkraise()
         self.update()
+
+    def setTime(self):
+        if self.__coms is not None:
+            if self.__coms.connected:
+                self.__now = datetime.now()
+                self.__coms.sendTime(self.__now.strftime('%Y,%m,%d,%H,%M,%S'))
+                self.homepage()
 
     def getTime(self):
         self.__now = datetime.now()
@@ -137,12 +228,14 @@ class app(customtkinter.CTk):
 if __name__ == "__main__":
     main = app()
     main.homepage()
-    if not os.path.isfile('./data/nama.txt'):
-        with open('./data/nama.txt','w') as f:
+    maindir = os.getcwd()
+
+    if not os.path.isfile(f'{maindir}/Absensi/data/nama.txt'):
+        with open(f'{maindir}/Absensi/data/nama.txt','w') as f:
             pass
 
-    if not os.path.isfile('./data/log.json'):
-        with open('./data/log.json','w') as f:
+    if not os.path.isfile(f'{maindir}/Absensi/data/log.json'):
+        with open(f'{maindir}/Absensi/data/log.json','w') as f:
             pass
-
+    
     main.mainloop()
