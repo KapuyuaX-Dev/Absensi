@@ -1,1 +1,1 @@
-{"wifiMode": 1, "AP": {"SSID": "asdfghjkl", "psw": "12345678"}, "STA": {"SSID": "", "psw": ""}}
+{"wifiMode": 2, "AP": {"SSID": "asddfghjlk", "psw": "12345678"}, "STA": {"SSID": "zxcvbnm", "psw": "0987654321"}}

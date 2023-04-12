@@ -1,5 +1,6 @@
 import customtkinter
 from tkinter import *
+from tkinter import messagebox
 import time
 import socket
 import threading
@@ -40,6 +41,12 @@ class socketCon():
     def sendTime(self,time):
         _msg = f'setTime:{time}'
         self.sendRequest(_msg)
+
+    def sendReboot(self):
+        self.sendRequest('req:ESPReboot')
+
+    def sendReset(self):
+        self.sendRequest('req:ESPEraseData')
 
     def listenIncomingMessage(self):
         while self.connected:
@@ -82,8 +89,9 @@ class app(customtkinter.CTk):
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def on_closing(self):
-        if self.__coms.connected:
-            self.__coms.disconnect()
+        if self.__coms is not None:
+            if self.__coms.connected:
+                self.__coms.disconnect()
         self.destroy()
 
     def connectionRecv(self,_msg):
@@ -122,8 +130,8 @@ class app(customtkinter.CTk):
         customtkinter.CTkButton(self.__homepage,text='update',width=80,command=self.updatePage).place(anchor=W,relx=0.28,rely=0.72)
         customtkinter.CTkButton(self.__homepage,text='time',width=80, command=self.timePage).place(anchor=W,relx=0.53,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='network',width=80, command=self.networkPage).place(anchor=W,relx=0.53,rely=0.72)
-        customtkinter.CTkButton(self.__homepage,text='reboot',width=80).place(anchor=W,relx=0.78,rely=0.5)
-        customtkinter.CTkButton(self.__homepage,text='reset',width=80).place(anchor=W,relx=0.78,rely=0.72)
+        customtkinter.CTkButton(self.__homepage,text='reboot',width=80,command=self.handleReboot).place(anchor=W,relx=0.78,rely=0.5)
+        customtkinter.CTkButton(self.__homepage,text='reset',width=80,command=self.handleFactoryReset).place(anchor=W,relx=0.78,rely=0.72)
         self.__homepage.tkraise()
         self.update()
 
@@ -171,8 +179,14 @@ class app(customtkinter.CTk):
             }
         }
         self.__jsonObject = json.dumps(self.__data)
-        with open(f'{os.getcwd()}/Absensi/data/network.txt','w') as f:
+
+        maindir = os.getcwd()
+        if maindir.find('Absensi') < 0 :
+            maindir = os.path.join(maindir,'Absensi')
+
+        with open(f'{maindir}/data/network.txt','w') as f:
             f.write(self.__jsonObject)
+
         if self.__coms is not None:
             if self.__coms.connected:
                 self.__coms.sendNetwork(self.__jsonObject)
@@ -225,17 +239,40 @@ class app(customtkinter.CTk):
         self.__updatepage.tkraise()
         self.update()
 
+    def handleReboot(self):
+        cmd = messagebox.askquestion("Reboot", "Reboot Machine?",icon = 'warning')
+        if cmd == 'yes':
+            if self.__coms is not None:
+                if self.__coms.connected:
+                    self.__coms.sendReboot()
+                    self.makeConnection()
+            messagebox.showinfo('Reboot',"Rebooting...")      
+
+    def handleFactoryReset(self):
+        cmd = messagebox.askquestion("Factory Reset", "SERIUS ANGKU?",icon = 'warning')
+        if cmd == 'yes':
+            cmd = messagebox.askquestion("Factory Reset", "DOLAH DATA HILANG HA, SERIUS?",icon = 'warning')
+            if cmd == 'yes':
+                cmd = messagebox.askquestion("Factory Reset", "SERIUS LAH!?",icon = 'warning')
+                if cmd == 'yes':
+                    if self.__coms is not None:
+                        if self.__coms.connected:
+                            self.__coms.sendReset()
+                    self.on_closing()
+                
+
 if __name__ == "__main__":
     main = app()
     main.homepage()
     maindir = os.getcwd()
-
-    if not os.path.isfile(f'{maindir}/Absensi/data/nama.txt'):
-        with open(f'{maindir}/Absensi/data/nama.txt','w') as f:
+    if maindir.find('Absensi') < 0 :
+        maindir = os.path.join(maindir,'Absensi')
+    if not os.path.isfile(f'{maindir}/data/nama.txt'):
+        with open(f'{maindir}/data/nama.txt','w') as f:
             pass
 
-    if not os.path.isfile(f'{maindir}/Absensi/data/log.json'):
-        with open(f'{maindir}/Absensi/data/log.json','w') as f:
+    if not os.path.isfile(f'{maindir}/data/log.json'):
+        with open(f'{maindir}/data/log.json','w') as f:
             pass
     
     main.mainloop()
