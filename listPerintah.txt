@@ -1,0 +1,1 @@
+pyinstaller --noconsole --onedir --add-data "D:/Data Rifqi/ROBOTIK/RISET/project absensi/Absensi/src/Lib/site-packages/customtkinter;customtkinter/" main.py 

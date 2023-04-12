@@ -48,6 +48,9 @@ class socketCon():
     def sendReset(self):
         self.sendRequest('req:ESPEraseData')
 
+    def getName(self):
+        self.sendRequest('req:name')
+
     def listenIncomingMessage(self):
         while self.connected:
             try:
@@ -77,13 +80,22 @@ class app(customtkinter.CTk):
         self.WiFiMode = 1
         self.__radioWiFiMode.set(self.WiFiMode)
 
+        self.__listNama = [
+            {
+                'Nama':'Select',
+                'Nia':'',
+                'NUID':''
+            }
+        ]
+
         self.__homepage = customtkinter.CTkFrame(self,width=400, height=220)
         self.__uploadpage = customtkinter.CTkFrame(self,width=400, height=220)
         self.__networkpage = customtkinter.CTkFrame(self,width=400, height=220)
         self.__timepage = customtkinter.CTkFrame(self,width=400, height=220)
         self.__updatepage = customtkinter.CTkFrame(self,width=400, height=220)
+        self.__downloadpage = customtkinter.CTkFrame(self,width=400, height=220)
 
-        for frame in (self.__homepage,self.__uploadpage,self.__networkpage, self.__timepage,self.__updatepage):
+        for frame in (self.__homepage,self.__uploadpage,self.__networkpage, self.__timepage,self.__updatepage,self.__downloadpage):
             frame.grid(row=0, column=0, sticky='nsew')
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -96,6 +108,8 @@ class app(customtkinter.CTk):
 
     def connectionRecv(self,_msg):
         print(_msg)
+        if _msg.find(":")>0:
+            _msg = _msg.split(':')
 
     def makeConnection(self):
         if self.__coms:
@@ -114,8 +128,16 @@ class app(customtkinter.CTk):
             self.connectButton.configure(text='Disconnect')
 
     def handleDownload(self):
+        self.downloadPage()
         if self.__coms is not None:
-            self.__coms.download()
+            if self.__coms.connected:
+                self.__coms.download()
+        
+
+    def downloadPage(self):
+        customtkinter.CTkButton(self.__downloadpage,text='return',width=80, command=self.homepage).place(anchor=CENTER,relx=0.5,rely=0.9)
+        self.__downloadpage.tkraise()
+        self.update()
 
     def homepage(self):
         customtkinter.CTkLabel(self.__homepage,text="Absensi UKRO UNP",font=('arial',16)).place(anchor=CENTER,relx=0.5,rely=0.125)
@@ -222,8 +244,13 @@ class app(customtkinter.CTk):
         self.after(1000,self.getTime)
 
     def updatePage(self):
+        if self.__coms is not None:
+            if self.__coms.connected:
+                self.__coms.getName()
+                
         customtkinter.CTkLabel(self.__updatepage,text="Update Data",font=('arial',16)).place(anchor=W,relx=0.15,rely=0.115)
-        self.optionNama = customtkinter.CTkOptionMenu(self.__updatepage,width=80, values=['Select']).place(anchor=W,relx=0.5,rely=0.115)
+
+        self.optionNama = customtkinter.CTkOptionMenu(self.__updatepage,width=80, values=[x['Nama'] for x in self.__listNama]).place(anchor=W,relx=0.5,rely=0.115)
 
         self.entryUName = customtkinter.CTkEntry(self.__updatepage,placeholder_text="Nama Lengkap", width=300)
         self.entryUName.place(anchor=W, relx=0.15, rely=0.3)
