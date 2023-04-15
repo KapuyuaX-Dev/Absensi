@@ -153,15 +153,44 @@ class app(customtkinter.CTk):
                 self.__coms.disconnect()
         self.destroy()
 
+    def processLogData(self,logData):
+        self.__logData = logData.split('\n')
+        d = {}
+        dataJson = None
+        maindir = os.getcwd()
+        if maindir.find('Absensi') < 0 :
+            maindir = os.path.join(maindir,'Absensi')
+
+        with open(f'{maindir}/data/log.json','r') as f:
+            dataJson = json.loads(f.read())
+
+        for data in self.__logData:
+            data = data.split(',')
+            if len(data)>1:
+                if data[2] not in d:
+                    d[data[2]] = {'attendance': []}
+                d[data[2]]['attendance'].append({'name': data[0], 'nia': data[1]})
+
+        for date in d:
+            dataJson.append({'date': date, 'attendance': d[date]['attendance']})
+        
+        print(dataJson)
+        
+        with open(f'{maindir}/data/log.json','w') as f:
+            json.dump(dataJson,f,indent=4)
+        
+
     def connectionRecv(self,_msg):
         print(_msg)
         if _msg.find(":")>0:
-            _msg = _msg.split('=')
+            _msg = _msg.split(':')
 
             if _msg[0] == 'UID':
                 self.__NUID = _msg[1]
                 self.buttonNUID.configure(text = self.__NUID)
-
+            
+            elif _msg[0] == 'log':
+                threading.Thread(target=self.processLogData,args=(_msg[1],)).start()
 
     def makeConnection(self):
         if self.__coms:
@@ -235,7 +264,7 @@ class app(customtkinter.CTk):
                     maindir = os.path.join(maindir,'Absensi')
 
                 with open(f'{maindir}/data/nama.txt','a') as f:
-                    f.write(f'{nama},{nia},{uid}')
+                    f.write(f'{nama},{nia},{uid}\n')
                 
                 self.__NUID = ''
 
