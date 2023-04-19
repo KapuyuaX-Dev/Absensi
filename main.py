@@ -421,6 +421,12 @@ class app(customtkinter.CTk):
         
         print(listNama)
         self.__coms.updateNama(listNama)
+        maindir = os.getcwd()
+        if maindir.find('Absensi') < 0 :
+            maindir = os.path.join(maindir,'Absensi')
+
+        with open(f'{maindir}/data/nama.txt','w') as f:
+            f.write(listNama)
 
 
     def optionNamaAction(self,choice):
