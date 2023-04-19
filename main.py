@@ -76,6 +76,10 @@ class socketCon():
         except Exception as e:
             print(e)
 
+    def updateNama(self,names):
+        _msg = f"update:{names}"
+        self.sendRequest(_msg)
+
     def sendNetwork(self,data):
         _msg = f'setWifi:{data}'
         self.sendRequest(_msg)
@@ -123,7 +127,7 @@ class app(customtkinter.CTk):
         }
         self.WiFiMode = 1
         self.__radioWiFiMode.set(self.WiFiMode)
-
+        self.optionMenuVar = customtkinter.StringVar(value="Select")
         self.__listNama = [
             {
                 'Nama':'Select',
@@ -150,6 +154,7 @@ class app(customtkinter.CTk):
     def on_closing(self):
         if self.__coms is not None:
             if self.__coms.connected:
+                self.__coms.sendReboot()
                 self.__coms.disconnect()
         self.destroy()
 
@@ -178,7 +183,27 @@ class app(customtkinter.CTk):
         
         with open(f'{maindir}/data/log.json','w') as f:
             json.dump(dataJson,f,indent=4)
-        
+    
+    def processName(self,names):
+        self._names = names.split('\n')
+        self.__listNama = [
+            {
+                'Nama':'Select',
+                'Nia':'',
+                'NUID':''
+            }
+        ]
+        for name in self._names:
+            name = name.rstrip().split(',')
+            print(name)
+            if len(name) > 1:
+                self.__listNama.append({
+                'Nama':name[0],
+                'Nia':name[1],
+                'NUID':name[2]
+            })
+
+        self.optionNama.configure(values=[x['Nama'] for x in self.__listNama])
 
     def connectionRecv(self,_msg):
         print(_msg)
@@ -187,10 +212,19 @@ class app(customtkinter.CTk):
 
             if _msg[0] == 'UID':
                 self.__NUID = _msg[1]
-                self.buttonNUID.configure(text = self.__NUID)
+                try:
+                    self.buttonNUID.configure(text = self.__NUID)
+                except: pass
+                try:
+                    self.labelUNUID.configure(text=f'NUID:{self.__NUID}')
+                except: pass
             
             elif _msg[0] == 'log':
                 threading.Thread(target=self.processLogData,args=(_msg[1],)).start()
+
+            elif _msg[0] == 'name':
+                #self.processName(_msg[1])
+                threading.Thread(target=self.processName,args=(_msg[1],)).start()
 
     def makeConnection(self):
         if self.__coms:
@@ -347,27 +381,57 @@ class app(customtkinter.CTk):
         self.after(1000,self.getTime)
 
     def updatePage(self):
-        if self.__coms is not None:
-            if self.__coms.connected:
-                self.__coms.getName()
-
         customtkinter.CTkLabel(self.__updatepage,text="Update Data",font=('arial',16)).place(anchor=W,relx=0.15,rely=0.115)
-
-        self.optionNama = customtkinter.CTkOptionMenu(self.__updatepage,width=80, values=[x['Nama'] for x in self.__listNama]).place(anchor=W,relx=0.5,rely=0.115)
-
+        
+        self.optionNama = customtkinter.CTkOptionMenu(self.__updatepage,width=80, values=[x['Nama'] for x in self.__listNama],variable=self.optionMenuVar,command=self.optionNamaAction)
+        self.optionNama.place(anchor=W,relx=0.5,rely=0.115)
         self.entryUName = customtkinter.CTkEntry(self.__updatepage,placeholder_text="Nama Lengkap", width=300)
         self.entryUName.place(anchor=W, relx=0.15, rely=0.3)
         self.entryUNIA = customtkinter.CTkEntry(self.__updatepage,placeholder_text="Nomor Induk Anggota", width=300)
         self.entryUNIA.place(anchor=W, relx=0.15, rely=0.45)
         self.labelUNUID = customtkinter.CTkLabel(self.__updatepage, text='NUID:')
         self.labelUNUID.place(anchor=W,relx=0.15,rely=0.6)
-        self.getNUID = customtkinter.CTkButton(self.__updatepage,text='Get new NUID ID Card',width=20).place(anchor=W,relx=0.5,rely=0.6)
+        self.getNUID = customtkinter.CTkButton(self.__updatepage,text='Get new NUID ID Card',width=20,command=self.getUID).place(anchor=W,relx=0.5,rely=0.6)
 
-        customtkinter.CTkButton(self.__updatepage,text='Save',width=80).place(anchor=E,relx=0.49,rely=0.9)
+        customtkinter.CTkButton(self.__updatepage,text='Save',width=80,command=self.updatePageSave).place(anchor=E,relx=0.49,rely=0.9)
         customtkinter.CTkButton(self.__updatepage,text='return',width=80, command=self.homepage).place(anchor=W,relx=0.51,rely=0.9)
+
+        if self.__coms is not None:
+            if self.__coms.connected:
+                self.__coms.getName()
 
         self.__updatepage.tkraise()
         self.update()
+
+    def updatePageSave(self):
+        nama = self.entryUName.get()
+        nia = self.entryUNIA.get()
+        uid = self.__NUID
+        index = [x['Nama'] for x in self.__listNama].index(nama)
+        self.__listNama[index]['Nama'] = nama
+        self.__listNama[index]['Nia'] = nia
+        self.__listNama[index]['NUID'] = uid
+
+        print(self.__listNama)
+        listNama = ''
+        for i, value in enumerate(self.__listNama):
+            if i == 0:
+                continue
+            listNama = listNama + f"{value['Nama']},{value['Nia']},{value['NUID']}\r\n"
+        
+        print(listNama)
+        self.__coms.updateNama(listNama)
+
+
+    def optionNamaAction(self,choice):
+        self.__dict = self.__listNama[[x['Nama'] for x in self.__listNama].index(choice)]
+        self.entryUName.delete(0,END)
+        self.entryUNIA.delete(0,END)
+        self.optionMenuVar.set(self.__dict['Nama'])
+        self.entryUName.insert(0,self.__dict['Nama'])
+        self.entryUNIA.insert(0,self.__dict['Nia'])
+        self.labelUNUID.configure(text=f"NUID:{self.__dict['NUID']}")
+
 
     def getUID(self):
         if self.__coms is not None:
@@ -402,12 +466,14 @@ if __name__ == "__main__":
     maindir = os.getcwd()
     if maindir.find('Absensi') < 0 :
         maindir = os.path.join(maindir,'Absensi')
+
     if not os.path.isfile(f'{maindir}/data/nama.txt'):
         with open(f'{maindir}/data/nama.txt','w') as f:
             pass
 
     if not os.path.isfile(f'{maindir}/data/log.json'):
         with open(f'{maindir}/data/log.json','w') as f:
+            json.dump([],f,indent=4)
             pass
     
     main.mainloop()
