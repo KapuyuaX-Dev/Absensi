@@ -1,1 +1,3 @@
-# Absensi Robotic python app
+# Absensi Robotic Python App
+this project created with virtual environment
+
