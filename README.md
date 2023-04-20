@@ -3,7 +3,7 @@ This project created with python virtual environment
 
 ## To use build version
 1. clone this github repository
-2. run main.exe in "Absensi\dist\main"
+2. run main.exe in Absensi\dist\main
 
 ## To activate virtual environment
 1. clone this github repository

@@ -7,29 +7,85 @@ import threading
 from datetime import datetime
 import os
 import json
+import openpyxl
+import calendar
+import requests
 
-'''
-data = [
-    'Rifqi Firlian Pratama,18323070,13-04-2023',
-    'Hanifah Nur Ismail,1923141,13-04-2023',
-    'Rifqi Firlian Pratama,18323070,14-04-2023'
-]
+def getMonthDay(year,month):
+    return calendar.monthrange(year,month)[1]
 
-d = {}
+class excel:
+    def __init__(self):
+        self.__logData = None
 
-for item in data:
-    parts = item.split(',')
-    date = parts[2]
-    name = parts[0]
-    nia = int(parts[1])
-    if date not in d:
-        d[date] = {'attendance': []}
-    d[date]['attendance'].append({'name': name, 'nia': nia})
+    def createExcel(self,filename):
+        __wb = openpyxl.Workbook()
+        __wb.save(f"{filename}.xlsx")
 
-output = [{'date': date, 'attendance': d[date]['attendance']} for date in d]
+    def saveExcel(self,**kwargs):
+        self.__logData = self.getRequest(month=kwargs['month'],year=kwargs['year'])
 
-print(output)
-'''
+        __filename = f"Absensi {calendar.month_name[kwargs['month']]} {kwargs['year']}"
+        
+        __maindir = os.getcwd()
+
+        if __maindir.find('Absensi') < 0 :
+            __maindir = os.path.join(__maindir,'Absensi')
+
+        if not os.path.isfile(f'{__maindir}/data/{__filename}.xlsx'):
+            self.createExcel(f'{__maindir}/data/{__filename}')
+
+        __nameAttendance = {}
+        for __item in self.__logData:
+            __date = __item['date']
+            for __att in __item['absensi']:
+                __name = __att['nama']
+                if __name not in __nameAttendance:
+                    __nameAttendance[__name] = {'nama':__name,'absensi':[__date]}
+                else:
+                    __nameAttendance[__name]['absensi'].append(__date)
+
+        self.__logData = list(__nameAttendance.values())
+        __dayinmonth = getMonthDay(kwargs['year'],kwargs['month'])
+
+        data = []
+        data.append(tuple(['No','Nama']+[x for x in range(1,__dayinmonth+1)]))
+        for i,log in enumerate(self.__logData):
+            __logDate = [int(logDate.split('-')[0]) for logDate in log['absensi']]
+            __absensi = [i+1,log['nama']]
+            for date in range(1,__dayinmonth+1):
+                __absensi.append('H') if date in(__logDate) else __absensi.append(' ')
+            data.append(tuple(__absensi))
+            
+        __wb = openpyxl.load_workbook(f'{__maindir}/data/{__filename}.xlsx',data_only=True)
+        __sheet = __wb.active
+        _maxCol = openpyxl.utils.cell.get_column_letter(len(data[0]))
+
+        for i, value in enumerate(data):
+            for row in __sheet[f'A{i+1}:{_maxCol}{i+1}']:
+                for j, cell in enumerate(row):
+                    cell.value = value[j]
+                    
+        '''
+        for row in __sheet[f'A1:{_maxCol}{_maxRow}']:
+            for cell in row:
+                cell.value = None
+        '''
+        
+        __wb.save(f'{__maindir}/data/{__filename}.xlsx')
+        return f'{__maindir}/data/{__filename}.xlsx was created'
+
+    def getRequest(self, **kwargs):
+        __params = params = {
+                'bulan':kwargs['month'],
+                'tahun':kwargs['year']
+            }
+        __headers = {
+                'User-Agent': 'Custom'
+            }
+        __r = requests.get('http://robotik.pkm.unp.ac.id/api/absensi/get/',params=__params,headers=__headers)
+
+        return __r.json()
 
 class socketCon():
     def __init__(self, host, port,funcRecv):
@@ -117,7 +173,7 @@ class app(customtkinter.CTk):
 
         #socket con
         self.__coms = None
-
+        self.excel = excel()
         #local Variable
         self.__time = None
         self.__radioWiFiMode = IntVar(0)
@@ -135,9 +191,11 @@ class app(customtkinter.CTk):
                 'NUID':''
             }
         ]
+        self.__listTahun = ["Tahun"]+[str(x) for x in range(2023,int(datetime.now().strftime('%Y'))+1)]
+        self.optionTahunVar = customtkinter.StringVar(value=self.__listTahun[0])
+        self.optionBulanVar = customtkinter.StringVar(value="1")
 
         self.__NUID = ''
-
 
         self.__homepage = customtkinter.CTkFrame(self,width=400, height=220)
         self.__uploadpage = customtkinter.CTkFrame(self,width=400, height=220)
@@ -243,16 +301,43 @@ class app(customtkinter.CTk):
                 self.connectButton.configure(text='Disconnect')
 
     def handleDownload(self):
-        self.downloadPage()
         if self.__coms is not None:
             if self.__coms.connected:
                 self.__coms.download()
+                self.progressLabel.configure(text='Absensi\\data\\log.json was created')
         
 
     def downloadPage(self):
+        customtkinter.CTkLabel(self.__downloadpage,text="Database Download").place(anchor=CENTER,relx=0.75,rely=0.08)
+        customtkinter.CTkOptionMenu(self.__downloadpage,width=80, values=self.__listTahun,variable=self.optionTahunVar,command=self.optionTahunAction).place(anchor=CENTER,relx=0.75,rely=0.2)
+        self.optionMenuBulan = customtkinter.CTkOptionMenu(self.__downloadpage,width=80, values=["1"],variable=self.optionBulanVar)
+        self.optionMenuBulan.place(anchor=CENTER,relx=0.75,rely=0.4)
+        customtkinter.CTkButton(self.__downloadpage,width=80,text="Download",command=self.databaseDownloadAction).place(anchor=CENTER,relx=0.75,rely=0.6)
+        
+        customtkinter.CTkLabel(self.__downloadpage,text="Logger Download").place(anchor=CENTER,relx=0.25,rely=0.08)
+        customtkinter.CTkButton(self.__downloadpage,width=80,text="Download",command=self.handleDownload).place(anchor=CENTER,relx=0.25,rely=0.6)
+        
+        self.progressLabel = customtkinter.CTkLabel(self.__downloadpage,text='',font=("arial",8))
+        self.progressLabel.place(anchor=CENTER,relx=0.5,rely=0.75)
         customtkinter.CTkButton(self.__downloadpage,text='return',width=80, command=self.homepage).place(anchor=CENTER,relx=0.5,rely=0.9)
         self.__downloadpage.tkraise()
         self.update()
+    
+    def databaseDownloadAction(self):
+        _tahun = self.optionTahunVar.get()
+        if _tahun != 'Tahun':
+            text = self.excel.saveExcel(year=int(_tahun),month=int(self.optionBulanVar.get()))
+            self.progressLabel.configure(text=text)
+        else:
+            return
+
+    def optionTahunAction(self,choice):
+        self.optionMenuVar.set(choice)
+        if choice == datetime.now().strftime('%Y'):
+            self.optionMenuBulan.configure(values=[str(x) for x in range(1,int(datetime.now().strftime('%m'))+1)])
+        else:
+            self.optionMenuBulan.configure(values=[str(x) for x in range(1,13)])
+
 
     def homepage(self):
         customtkinter.CTkLabel(self.__homepage,text="Absensi UKRO UNP",font=('arial',16)).place(anchor=CENTER,relx=0.5,rely=0.125)
@@ -263,7 +348,7 @@ class app(customtkinter.CTk):
         self.connectButton = customtkinter.CTkButton(self.__homepage,text=context ,width=80,command=self.makeConnection)
         self.connectButton.place(anchor=CENTER,relx=0.13,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='upload',width=80, command=self.uploadPage).place(anchor=CENTER,relx=0.13,rely=0.72)
-        customtkinter.CTkButton(self.__homepage,text='download',width=80,command=self.handleDownload).place(anchor=W,relx=0.28,rely=0.5)
+        customtkinter.CTkButton(self.__homepage,text='download',width=80,command=self.downloadPage).place(anchor=W,relx=0.28,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='update',width=80,command=self.updatePage).place(anchor=W,relx=0.28,rely=0.72)
         customtkinter.CTkButton(self.__homepage,text='time',width=80, command=self.timePage).place(anchor=W,relx=0.53,rely=0.5)
         customtkinter.CTkButton(self.__homepage,text='network',width=80, command=self.networkPage).place(anchor=W,relx=0.53,rely=0.72)
