@@ -40,8 +40,9 @@ class excel:
             __date = __item['date']
             for __att in __item['absensi']:
                 __name = __att['nama']
+                __nia = __att['NIA']
                 if __name not in __nameAttendance:
-                    __nameAttendance[__name] = {'nama':__name,'absensi':[__date]}
+                    __nameAttendance[__name] = {'nama':__name,'nia':__nia,'absensi':[__date]}
                 else:
                     __nameAttendance[__name]['absensi'].append(__date)
 
@@ -49,10 +50,10 @@ class excel:
         __dayinmonth = getMonthDay(kwargs['year'],kwargs['month'])
 
         data = []
-        data.append(tuple(['No','Nama']+[x for x in range(1,__dayinmonth+1)]))
+        data.append(tuple(['No','Nama','NIA']+[f"{str(x)}/{kwargs['month']}/{kwargs['year']}" for x in range(1,__dayinmonth+1)]))
         for i,log in enumerate(self.__logData):
             __logDate = [int(logDate.split('-')[0]) for logDate in log['absensi']]
-            __absensi = [i+1,log['nama']]
+            __absensi = [i+1,log['nama'],log['nia']]
             for date in range(1,__dayinmonth+1):
                 __absensi.append('H') if date in(__logDate) else __absensi.append(' ')
             data.append(tuple(__absensi))
